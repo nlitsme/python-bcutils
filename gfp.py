@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 from modinv import modinv
 """
 By Willem Hengeveld <itsme@xs4all.nl>
@@ -24,6 +25,8 @@ class FiniteField:
         def __sub__(self, rhs): return self.field.sub(self, self.field.value(rhs))
         def __mul__(self, rhs): return self.field.mul(self, self.field.value(rhs))
         def __div__(self, rhs): return self.field.div(self, self.field.value(rhs))
+        def __truediv__(self, rhs): return self.__div__(rhs)
+        def __floordiv__(self, rhs): return self.__div__(rhs)
         def __pow__(self, rhs): return self.field.pow(self, rhs)
 
         # int * Value
@@ -31,6 +34,8 @@ class FiniteField:
         def __rsub__(self, lhs): return self.field.sub(self.field.value(lhs), self)
         def __rmul__(self, lhs): return self.field.mul(self.field.value(lhs), self)
         def __rdiv__(self, lhs): return self.field.div(self.field.value(lhs), self)
+        def __rtruediv__(self, rhs): return self.__rdiv__(rhs)
+        def __rfloordiv__(self, rhs): return self.__rdiv__(rhs)
         def __rpow__(self, lhs): return self.field.pow(self.field.value(lhs), self)
 
         def __eq__(self, rhs): return self.field.eq(self, self.field.value(rhs))
@@ -44,14 +49,15 @@ class FiniteField:
         def issquare(self): return self.field.issquare(self)
         def inverse(self):  return self.field.inverse(self)
         def __nonzero__(self): return self.field.nonzero(self)
-        def __int__(self): return self.value
+        def __bool__(self): return self.__nonzero__() != 0
+        def __int__(self): return self.field.intvalue(self)
 
         def samefield(a,b): 
             """
             determine if a uses the same field 
             """
             if a.field!=b.field: 
-                print "field mismatch"
+                print("field mismatch")
             return True
 
         def sqrtflag(self):
@@ -83,7 +89,7 @@ class FiniteField:
 
     # nr is square legendre symbol == 1
     def issquare(self, val):
-        return val**((self.p-1)/2)==1
+        return val**((self.p-1)//2)==1
     def sqrt(self, val, flag):
         """
         calculate the square root modulus p
@@ -92,13 +98,13 @@ class FiniteField:
             return val
         sw= self.p % 8
         if sw==3 or sw==7:
-            res= val**((self.p+1)/4)
+            res= val**((self.p+1)//4)
         elif sw==5:
-            x= val**((self.p+1)/4)
+            x= val**((self.p+1)//4)
             if x==1:
-                res= val**((self.p+3)/8)
+                res= val**((self.p+3)//8)
             else:
-                res= (4*val)**((self.p-5)/8)*2*val
+                res= (4*val)**((self.p-5)//8)*2*val
         else:
             raise Exception("modsqrt non supported for (p%8)==1")
         if res.value%2==flag:
@@ -138,5 +144,7 @@ class FiniteField:
         """
         return FiniteField.Value(self, 1)
 
+    def intvalue(self, x):
+        return x.value % self.p
 
 

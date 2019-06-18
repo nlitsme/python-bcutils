@@ -1,4 +1,8 @@
-from Crypto.Hash import SHA256, RIPEMD160
+from Crypto.Hash import SHA256
+try:
+    from Crypto.Hash import RIPEMD160
+except:
+    from Crypto.Hash import RIPEMD as RIPEMD160
 """
 By Willem Hengeveld <itsme@xs4all.nl>
 

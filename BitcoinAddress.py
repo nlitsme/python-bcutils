@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 import ecdsa
 from hashing import *
 import base58
@@ -7,6 +8,16 @@ import convert
 By Willem Hengeveld <itsme@xs4all.nl>
 
 Objects representing all bitcoin address releated information
+
+
+
+note on uniqueness:
+    'small':  less than: 2^256 - the group order 'n'
+
+    'small' priv keys can be represented as both 'x', and 'x+n'
+    pubkeys with 'small' x-coordinate can be represented both as:
+    (x,y)  and (x+n,y)
+    both of which lead to different addresses.
 """
 
 ecdsa= ecdsa.secp256k1()
@@ -37,14 +48,14 @@ class Address:
         self= Address()
         data= base58.decode(b58)
         if len(data)>25:
-            print "addr len > 25: %s" % data.encode("hex")
+            print("addr len > 25: %s" % data.encode("hex"))
             raise Exception("Invalid base58 length")
         if len(data)<25:
             data= "\x00" * (25-len(data))
         self.version= ord(data[0])
         self.hash= data[1:21]
         if shasha(data[0:21])[:4] != data[21:]:
-            print "addr: %s: %s != %s" % (data[:21].encode("hex"), data[21:].encode("hex"), shasha(data[0:21])[:4])
+            print("addr: %s: %s != %s" % (data[:21].encode("hex"), data[21:].encode("hex"), shasha(data[0:21])[:4]))
             raise Exception("Invalid base58 checksum")
 
         return self
@@ -55,7 +66,7 @@ class Address:
         return base58.encode(data)
 
     def dump(self):
-        print "%-20s: %3d %s" % (self.hash.encode("hex"), self.version, self.base58())
+        print("%-20s: %3d %s" % (self.hash.encode("hex"), self.version, self.base58()))
 
 """
 represent the public key
@@ -70,8 +81,8 @@ class PublicKey:
         return chr(4) + convert.bytesfromnum(self.point.x) + convert.bytesfromnum(self.point.y)
 
     def dump(self):
-        print "%-20s: %s" % ("compressed", self.compressed().encode("hex"))
-        print "%-20s: %s" % ("full", self.uncompressed().encode("hex"))
+        print("%-20s: %s" % ("compressed", self.compressed().encode("hex")))
+        print("%-20s: %s" % ("full", self.uncompressed().encode("hex")))
 
     @staticmethod
     def frompubkey(key):
@@ -81,7 +92,7 @@ class PublicKey:
         elif len(key)==65 and ord(key[0])==4:
             self.point= ecdsa.ec.point(convert.numfrombytes(key[1:33]), convert.numfrombytes(key[33:65]))
         else:
-            print key.encode("hex")
+            print(key.encode("hex"))
             raise Exception("invalid point representation")
         return self
     @staticmethod
@@ -107,7 +118,7 @@ class PrivateKey:
         self= PrivateKey()
         data= base58.decode(b58)
         if not len(data) in (37, 38):
-            print "wallet len != 37/38: %s" % data.encode("hex")
+            print("wallet len != 37/38: %s" % data.encode("hex"))
             raise Exception("Invalid wallet length")
         self.version= ord(data[0])
         self.privkey= convert.numfrombytes(data[1:33])
@@ -115,7 +126,7 @@ class PrivateKey:
             # todo: ?? what is this for?
             self.compressed= ord(data[33])
         if shasha(data[:-4])[:4] != data[-4:]:
-            print "wallet: %s: %s != %s" % (data[:33].encode("hex"), data[33:].encode("hex"), shasha(data[0:33])[:4])
+            print("wallet: %s: %s != %s" % (data[:33].encode("hex"), data[33:].encode("hex"), shasha(data[0:33])[:4]))
             raise Exception("Invalid base58 checksum")
 
         return self
@@ -142,15 +153,15 @@ class PrivateKey:
         return base58.encode(data)
 
     def dump(self):
-        if self.minikey: print "%-20s: %s" % ("minikey", self.minikey)
-        print "%-20s: %064x" % ("privkey", self.privkey)
-        print "%-20s: %s" % ("wallet", self.wallet())
+        if self.minikey: print("%-20s: %s" % ("minikey", self.minikey))
+        print("%-20s: %064x" % ("privkey", self.privkey))
+        print("%-20s: %s" % ("wallet", self.wallet()))
         if self.version is not None and self.compressed is not None:
-            print "version: %d          compressed: %d" % (self.version, self.compressed)
+            print("version: %d          compressed: %d" % (self.version, self.compressed))
         elif self.compressed is not None:
-            print "compressed:  %d" % self.compressed
+            print("compressed:  %d" % self.compressed)
         elif self.version is not None:
-            print "version:     %d" % self.version
+            print("version:     %d" % self.version)
 
 
 """
@@ -177,7 +188,7 @@ class BitcoinAddress:
         if  self.pubkey:
             self.compaddr= Address.fromhash(sharip(self.pubkey.compressed()))
             self.fulladdr= Address.fromhash(sharip(self.pubkey.uncompressed()))
-            if self.privkey.version:
+            if self.privkey and self.privkey.version:
                 # most coins have walletversion = 128 + addressversion
                 self.compaddr.version= self.privkey.version-128
                 self.fulladdr.version= self.privkey.version-128
@@ -218,7 +229,7 @@ class BitcoinAddress:
         elif len(arg)==64 and ishex:
             return BitcoinAddress(PrivateKey.fromprivkey(arg.decode("hex")))
         else:
-            print "unknown string: %s" % arg
+            print("unknown string: %s" % arg)
 
     def dump(self):
         if self.privkey: self.privkey.dump()
@@ -227,9 +238,9 @@ class BitcoinAddress:
             if self.compaddr:
                 self.compaddr.dump()
         else:
-            print "comp:",
+            print("comp:",)
             self.compaddr.dump()
-            print "full:",
+            print("full:",)
             self.fulladdr.dump()
 
 

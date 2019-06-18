@@ -1,3 +1,6 @@
+from __future__ import print_function, division
+from binascii import a2b_hex, b2a_hex
+
 """
 By Willem Hengeveld <itsme@xs4all.nl>
 
@@ -8,13 +11,13 @@ charset= "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 def encode(data):
     def nbytes(x):
-       return (x.bit_length()+7)/8
+       return (x.bit_length()+7)//8
 
     res= ""
-    if type(data)==str:
+    if type(data)==bytes:
         bytelen= len(data)
         if bytelen:
-            data= int(data.encode("hex"), 16)
+            data= int(b2a_hex(data), 16)
         else:
             data= 0
         nrzeros= bytelen - nbytes(data)
@@ -25,7 +28,7 @@ def encode(data):
 
     while data:
         res += charset[data%58]
-        data /= 58
+        data //= 58
 
     res += charset[0] * nrzeros
 
@@ -55,5 +58,5 @@ def decode(enc):
         hexstr= ""
     hexstr= "00" * nrzeros + hexstr
 
-    return hexstr.decode("hex")
+    return a2b_hex(hexstr)
 

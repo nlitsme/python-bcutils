@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 import argparse
 import coininfo
 import BitcoinAddress as bca
@@ -38,7 +39,7 @@ elif args.alt:
     coins= coininfo.by_name(args.alt)
     if coins:
         bca.setversions(coins[0].aver,coins[0].wver)
-        print "Using %s settings" % coins[0].names
+        print("Using %s settings" % coins[0].names)
 else:
     bca.setversions(args.address_version, args.wallet_version)
 
