@@ -4,6 +4,12 @@ from hashing import *
 import base58
 import re
 import convert
+import struct
+import binascii
+
+def byt(c):
+    return struct.pack("<B", c)
+
 """
 By Willem Hengeveld <itsme@xs4all.nl>
 
@@ -20,6 +26,10 @@ note on uniqueness:
     both of which lead to different addresses.
 """
 
+# the bitcoin wallet version.
+wallet_version = 0x80
+address_version = 0x00
+
 ecdsa= ecdsa.secp256k1()
 
 def setversions(aver, wver):
@@ -35,6 +45,7 @@ knows how to convert between hash and base58 representation
 """
 class Address:
     def __init__(self):
+        global address_version
         self.hash= None
         self.version= address_version  # global
 
@@ -61,12 +72,12 @@ class Address:
         return self
 
     def base58(self):
-        data= chr(self.version) + self.hash
+        data= byt(self.version) + self.hash
         data += shasha(data)[0:4]
         return base58.encode(data)
 
     def dump(self):
-        print("%-20s: %3d %s" % (self.hash.encode("hex"), self.version, self.base58()))
+        print("%-20s: %3d %s" % (binascii.b2a_hex(self.hash).decode('ascii'), self.version, self.base58()))
 
 """
 represent the public key
@@ -76,13 +87,13 @@ class PublicKey:
     def __init__(self):
         self.point= None
     def compressed(self):
-        return chr(2 + self.point.y.sqrtflag()) + convert.bytesfromnum(self.point.x) 
+        return struct.pack("<B", 2 + self.point.y.sqrtflag()) + convert.bytesfromnum(self.point.x) 
     def uncompressed(self):
-        return chr(4) + convert.bytesfromnum(self.point.x) + convert.bytesfromnum(self.point.y)
+        return struct.pack("<B", 4) + convert.bytesfromnum(self.point.x) + convert.bytesfromnum(self.point.y)
 
     def dump(self):
-        print("%-20s: %s" % ("compressed", self.compressed().encode("hex")))
-        print("%-20s: %s" % ("full", self.uncompressed().encode("hex")))
+        print("%-20s: %s" % ("compressed", binascii.b2a_hex(self.compressed()).decode('ascii')))
+        print("%-20s: %s" % ("full", binascii.b2a_hex(self.uncompressed()).decode('ascii')))
 
     @staticmethod
     def frompubkey(key):
@@ -108,6 +119,7 @@ can be initialized from minikey.
 """
 class PrivateKey:
     def __init__(self):
+        global wallet_version
         self.privkey= None
         self.minikey= None
         self.version= wallet_version  # global
@@ -120,7 +132,7 @@ class PrivateKey:
         if not len(data) in (37, 38):
             print("wallet len != 37/38: %s" % data.encode("hex"))
             raise Exception("Invalid wallet length")
-        self.version= ord(data[0])
+        self.version= ord(data[0:1])
         self.privkey= convert.numfrombytes(data[1:33])
         if len(data)==38:
             # todo: ?? what is this for?
@@ -148,7 +160,7 @@ class PrivateKey:
     def publickey(self):
         return PublicKey.frompoint(ecdsa.calcpub(self.privkey))
     def wallet(self):
-        data= chr(self.version)+convert.bytesfromnum(self.privkey)
+        data= byt(self.version)+convert.bytesfromnum(self.privkey)
         data += shasha(data)[:4]
         return base58.encode(data)
 
@@ -195,7 +207,8 @@ class BitcoinAddress:
 
     @staticmethod
     def from_privkey(arg):
-        return BitcoinAddress(PrivateKey.fromprivkey(arg.decode("hex")))
+        if type(arg)==str: arg = binascii.a2b_hex(arg)
+        return BitcoinAddress(PrivateKey.fromprivkey(arg))
     @staticmethod
     def from_wallet(arg):
         return BitcoinAddress(PrivateKey.fromwallet(arg))
@@ -238,9 +251,9 @@ class BitcoinAddress:
             if self.compaddr:
                 self.compaddr.dump()
         else:
-            print("comp:",)
+            print("comp:", end=" ")
             self.compaddr.dump()
-            print("full:",)
+            print("full:", end=" ")
             self.fulladdr.dump()
 
 
