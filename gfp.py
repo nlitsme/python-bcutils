@@ -17,8 +17,8 @@ class FiniteField:
         this class forwards all operations to the FiniteField class
         """
         def __init__(self, field, value):
-            self.field= field
-            self.value= int(value)
+            self.field = field
+            self.value = int(value)
 
         # Value * int
         def __add__(self, rhs): return self.field.add(self, self.field.value(rhs))
@@ -34,8 +34,8 @@ class FiniteField:
         def __rsub__(self, lhs): return self.field.sub(self.field.value(lhs), self)
         def __rmul__(self, lhs): return self.field.mul(self.field.value(lhs), self)
         def __rdiv__(self, lhs): return self.field.div(self.field.value(lhs), self)
-        def __rtruediv__(self, rhs): return self.__rdiv__(rhs)
-        def __rfloordiv__(self, rhs): return self.__rdiv__(rhs)
+        def __rtruediv__(self, lhs): return self.__rdiv__(lhs)
+        def __rfloordiv__(self, lhs): return self.__rdiv__(lhs)
         def __rpow__(self, lhs): return self.field.pow(self.field.value(lhs), self)
 
         def __eq__(self, rhs): return self.field.eq(self, self.field.value(rhs))
@@ -56,7 +56,7 @@ class FiniteField:
             """
             determine if a uses the same field 
             """
-            if a.field!=b.field: 
+            if a.field != b.field: 
                 print("field mismatch")
             return True
 
@@ -65,7 +65,7 @@ class FiniteField:
 
 
     def __init__(self, p):
-        self.p= p
+        self.p = p
 
     """
     several basic operators
@@ -96,17 +96,20 @@ class FiniteField:
         """
         if not val:
             return val
-        sw= self.p % 8
+        sw = self.p % 8
         if sw==3 or sw==7:
-            res= val**((self.p+1)//4)
+            res = val**((self.p+1)//4)
         elif sw==5:
-            x= val**((self.p+1)//4)
+            x = val**((self.p+1)//4)
             if x==1:
-                res= val**((self.p+3)//8)
+                res = val**((self.p+3)//8)
             else:
-                res= (4*val)**((self.p-5)//8)*2*val
+                res = (4*val)**((self.p-5)//8)*2*val
         else:
+            # todo: Tonelli-Shanks algorithm
             raise Exception("modsqrt non supported for (p%8)==1")
+        if res*res != val:
+            return None
         if res.value%2==flag:
             return res
         else:

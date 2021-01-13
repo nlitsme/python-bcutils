@@ -10,7 +10,7 @@ class WeierstrassCurve:
 
     y^2 = x^3 + A*x + B
 
-    with 4a^3+27b^2 !=0 (mod p)
+    with 4a^3+27b^2 != 0 (mod p)
     """
     class Point:
         """
@@ -19,9 +19,9 @@ class WeierstrassCurve:
         this class forwards all operations to the WeierstrassCurve class
         """
         def __init__(self, curve, x, y):
-            self.curve= curve
-            self.x= x
-            self.y= y
+            self.curve = curve
+            self.x = x
+            self.y = y
         # Point + Point
         def __add__(self, rhs): return self.curve.add(self, rhs)
         def __sub__(self, rhs): return self.curve.sub(self, rhs)
@@ -51,9 +51,9 @@ class WeierstrassCurve:
             return self.curve.isoncurve(self)
 
     def __init__(self, field, a, b):
-        self.field= field
-        self.a= field.value(a)
-        self.b= field.value(b)
+        self.field = field
+        self.a = field.value(a)
+        self.b = field.value(b)
 
     def add(self, p, q):
         """
@@ -66,16 +66,15 @@ class WeierstrassCurve:
         if p==q:
             if p.y==0:
                 return self.zero()
-            l= (3* p.x**2 + self.a) // (2* p.y)
+            l = (3* p.x**2 + self.a) // (2* p.y)
         elif p.x==q.x:
             return self.zero()
         else:
-            l= (p.y-q.y)//(p.x-q.x)
-
+            l = (p.y-q.y)//(p.x-q.x)
 
         # calculate the intersection point
-        x= l**2 - ( p.x + q.x )
-        y= l*(p.x-x)-p.y
+        x = l**2 - ( p.x + q.x )
+        y = l*(p.x-x)-p.y
         return self.point(x,y)
 
     # subtraction is :  a - b  =  a + -b
@@ -86,10 +85,10 @@ class WeierstrassCurve:
         scalar = int(scalar)
         if scalar<0:
             raise Exception("negative scalar")
-        accumulator= self.zero()
-        shifter= pt
-        while scalar!=0:
-            bit= scalar % 2
+        accumulator = self.zero()
+        shifter = pt
+        while scalar != 0:
+            bit = scalar % 2
             if bit:
                 accumulator += shifter
             shifter += shifter
@@ -135,11 +134,8 @@ class WeierstrassCurve:
         calculate the y coordinate given only the x value.
         there are 2 possible solutions, use 'flag' to select.
         """
-        x= self.field.value(x)
-        ysquare= x**3 + self.a*x+self.b
+        x = self.field.value(x)
+        ysquare = x**3 + self.a*x+self.b
 
         return self.point(x, ysquare.sqrt(flag))
-
-
-
 
