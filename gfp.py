@@ -28,6 +28,7 @@ class FiniteField:
         def __truediv__(self, rhs): return self.__div__(rhs)
         def __floordiv__(self, rhs): return self.__div__(rhs)
         def __pow__(self, rhs): return self.field.pow(self, rhs)
+        def pow(self, rhs): return self.field.pow(self, rhs)
 
         # int * Value
         def __radd__(self, lhs): return self.field.add(self.field.value(lhs), self)
@@ -62,6 +63,8 @@ class FiniteField:
 
         def sqrtflag(self):
             return self.value%2
+        def __mod__(self, lhs):
+            return self.value % lhs
 
 
     def __init__(self, p):
@@ -89,7 +92,7 @@ class FiniteField:
 
     # nr is square legendre symbol == 1
     def issquare(self, val):
-        return val**((self.p-1)//2)==1
+        return pow(val, (self.p-1)//2)==1
     def sqrt(self, val, flag):
         """
         calculate the square root modulus p
@@ -98,13 +101,13 @@ class FiniteField:
             return val
         sw = self.p % 8
         if sw==3 or sw==7:
-            res = val**((self.p+1)//4)
+            res = pow(val, (self.p+1)//4)
         elif sw==5:
-            x = val**((self.p+1)//4)
+            x = pow(val, (self.p+1)//4)
             if x==1:
-                res = val**((self.p+3)//8)
+                res = pow(val, (self.p+3)//8)
             else:
-                res = (4*val)**((self.p-5)//8)*2*val
+                res = pow(4*val, (self.p-5)//8)*2*val
         else:
             # todo: Tonelli-Shanks algorithm
             raise Exception("modsqrt non supported for (p%8)==1")
@@ -151,3 +154,9 @@ class FiniteField:
         return x.value % self.p
 
 
+import unittest
+class TestGFP(unittest.TestCase):
+    def testsqrt(self):
+        F = FiniteField(947)
+        self.assertEqual(F.value(263).sqrt(0), F.value(274))
+        self.assertEqual(F.value(263).sqrt(1), F.value(673))
