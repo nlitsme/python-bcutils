@@ -11,8 +11,6 @@ like finding a public key from a signature,
 and finding a private key from 2 signatures with identical 'r'
 """
 
-
-
 class ECDSA:
     """
     Digital Signature Algorithm using Elliptic Curves
