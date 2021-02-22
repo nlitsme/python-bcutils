@@ -7,9 +7,13 @@ import itertools
 from ecdsa import secp256k1
 
 transactions = [
+    # these transactions contain a crackable key
     "01000000023c99cb033a0f5897d0587c0172a5456f036496fe585f01d9fb6009154e26627e000000008b483045022100cabc3692f1f7ba75a8572dc5d270b35bcc00650534f6e5ecd6338e55355454d502200437b68b1ea23546f6f712fd6a7e5370cfc2e658a8f0245628afd8b6999d9da60141044a87eb1c5255b7d224e15b046f88fd322af1168954f0cba020a4358641d008c13228b85e0a1fd313e032326aff1b27240ece99c90dc58b19bab804c705fcd2ecffffffff3c99cb033a0f5897d0587c0172a5456f036496fe585f01d9fb6009154e26627e010000008c493046022100cabc3692f1f7ba75a8572dc5d270b35bcc00650534f6e5ecd6338e55355454d5022100b584c5e2f26eaac9510307f466d13f8d4e8f57b1323cc4151ff6ffeb6747ca9b014104bb6c1de01f36618ae05f7c183c22dfa8797e779f39537752c27e2dc045b0e6942f8af53270bf045f2258834b6dad7481ad6fca009d80f5b54697b08d104fc7b3ffffffff0180969800000000001976a914aed8036193b2e7ebdd7596fb658894548c6eb5bf88ac00000000",
     "0100000001ff7f73f59ef98051052d7ab6ed319dd9acc50598dcc4ea4a5f822cd9abd3df07010000008c493046022100cabc3692f1f7ba75a8572dc5d270b35bcc00650534f6e5ecd6338e55355454d50221009cae782a191f3e742d9d4ff8f726d097a3a256af9fbc1faf16e7ec4d9fcf6feb014104bb6c1de01f36618ae05f7c183c22dfa8797e779f39537752c27e2dc045b0e6942f8af53270bf045f2258834b6dad7481ad6fca009d80f5b54697b08d104fc7b3ffffffff0240420f00000000001976a914031b45590c4ce1b4082ab1ec7e46c72666653c1e88ac40548900000000001976a914b54405702bad7fd74cdb0567db22d1f58a48494e88ac00000000",
     "01000000015acb328d14b27ecf45f029db0023631773ad2b8ed7ac67380d445b21b6af1f9a010000008c493046022100cabc3692f1f7ba75a8572dc5d270b35bcc00650534f6e5ecd6338e55355454d5022100f65bfc44435a91814c142a3b8ee288a9183e6a3f012b84545d1fe334ccfac25e014104bb6c1de01f36618ae05f7c183c22dfa8797e779f39537752c27e2dc045b0e6942f8af53270bf045f2258834b6dad7481ad6fca009d80f5b54697b08d104fc7b3ffffffff0180969800000000001976a914a8964e5b08170f5601f526813d80c9f825b8775588ac00000000",
+
+    # this last one i only added because i wanted to test my segwit code.
+    "02000000000101581e745850749373afd0f1279be5b885df173b0365dda64524a44b530a7abeb10100000000feffffff0267ac0800000000001976a914d267d7366ebbf9c9acdbbf117ec691a16ac2d01388ac55f7480000000000160014519f1d41f081cbd9056ab1193a0b3559d07eebdc0247304402207d709637c3cc428938cbd302083b7f72a43c92619271b662993ae3ea3808e67e02201a6c629ba5e2a799e6595090e12574e230e7dc9ff1753529aa896f9f89092492012103f22084b4f5f55dd5d9f89d58566b73ed4f87754c1ab1b3cf5a506d9980218dabd63f0a00",
 ]
 
 def shasha(data):
@@ -129,6 +133,22 @@ class Input:
         inp.sequence_number = self.sequence_number
         return inp
 
+class WitnessValue:
+    def decode(self, r):
+        size = r.readvarint()
+        self.data = r.readbytes(size)
+    def encode(self, w):
+        w.writevarint(len(self.data))
+        w.writebytes(self.data)
+
+class Witness:
+    def decode(self, r):
+        nr = r.readvarint()
+        self.items = [ r.readobject(WitnessValue) for _ in range(nr) ]
+    def encode(self, w):
+        w.writevarint(len(self.items))
+        for i in self.items:
+            i.encode(w)
 
 class Output:
     """ encode, decode a transaction output """
@@ -181,10 +201,18 @@ class Transaction:
     """
     def decode(self, r):
         self.version = r.readdword()
+        self.witnessflag = None
         nrin = r.readvarint()
+        if nrin==0:
+            self.witnessflag = r.readbyte()
+            nrin = r.readvarint()
         self.inputs = [ r.readobject(Input) for _ in range(nrin) ]
         nrout = r.readvarint()
         self.outputs = [ r.readobject(Output) for _ in range(nrout) ]
+        if self.witnessflag:
+            self.witnesses = [ r.readobject(Witness) for _ in range(nrin) ]
+        else:
+            self.witnesses = []
         self.locktime = r.readdword()
 
     def encode(self, w):
@@ -207,6 +235,8 @@ class Transaction:
 
 def messagehash(txn, ci, inputindex):
     """ Calculate the message hash given the transaction, crackinfo and inputindex """
+
+    # todo: support segwit transactions.
     txndup = txn.copy()
     for i, inp in enumerate(txndup.inputs):
         if i==inputindex:
@@ -292,6 +322,9 @@ def main():
             ci = CrackInfo()
             ci.srctxn = inp.txn_hash
             ci.srcindex = inp.output_index
+            ci.pubkey = None
+            ci.r = None
+            ci.s = None
             for tag, value in inp.script:
                 if tag == 'data':
                     if len(value) in (33, 65):
@@ -300,6 +333,9 @@ def main():
                     elif 65 < len(value) < 74:
                         ci.r, ci.s = decode_signature(value)
                         print("found signature", b2a_hex(value))
+
+            if not ci.pubkey:
+                continue
             ci.m = messagehash(txn, ci, i)
 
             crackdata.append(ci)
