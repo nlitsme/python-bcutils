@@ -62,14 +62,14 @@ class Address:
         self= Address()
         data= base58.decode(b58)
         if len(data)>25:
-            print("addr len > 25: %s" % data.encode("hex"))
+            print("addr len > 25: %s" % binascii.b2a_hex(data))
             raise Exception("Invalid base58 length")
         if len(data)<25:
             data= "\x00" * (25-len(data))
         self.version= ord(data[0])
         self.hash= data[1:21]
         if shasha(data[0:21])[:4] != data[21:]:
-            print("addr: %s: %s != %s" % (data[:21].encode("hex"), data[21:].encode("hex"), shasha(data[0:21])[:4]))
+            print("addr: %s: %s != %s" % (binascii.b2a_hex(data[:21]), binascii.b2a_hex(data[21:]), shasha(data[0:21])[:4]))
             raise Exception("Invalid base58 checksum")
 
         return self
@@ -115,7 +115,7 @@ class PublicKey:
         elif len(key)==65 and ord(key[0])==4:
             self.point= ecdsa.ec.point(convert.numfrombytes(key[1:33]), convert.numfrombytes(key[33:65]))
         else:
-            print(key.encode("hex"))
+            print(binascii.b2a_hex(key))
             raise Exception("invalid point representation")
         return self
     @staticmethod
@@ -142,7 +142,7 @@ class PrivateKey:
         self= PrivateKey()
         data= base58.decode(b58)
         if not len(data) in (37, 38):
-            print("wallet len != 37/38: %s" % data.encode("hex"))
+            print("wallet len != 37/38: %s" % binascii.b2a_hex(data))
             raise Exception("Invalid wallet length")
         self.version= ord(data[0:1])
         self.privkey= convert.numfrombytes(data[1:33])
@@ -150,7 +150,7 @@ class PrivateKey:
             # todo: ?? what is this for?
             self.compressed= ord(data[33])
         if shasha(data[:-4])[:4] != data[-4:]:
-            print("wallet: %s: %s != %s" % (data[:33].encode("hex"), data[33:].encode("hex"), shasha(data[0:33])[:4]))
+            print("wallet: %s: %s != %s" % (binascii.b2a_hex(data[:33]), binascii.b2a_hex(data[33:]), shasha(data[0:33])[:4]))
             raise Exception("Invalid base58 checksum")
 
         return self
