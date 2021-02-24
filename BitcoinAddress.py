@@ -251,24 +251,31 @@ class BitcoinAddress:
         isb32= re.match('(?:\w+1)?['+bech32.alphabet+']+$', arg)
 
         if len(arg)==51 and arg[0]=='5' and 'H' <= arg[1] <= 'K' and isb58:
+            # a wallet private key
             return BitcoinAddress(PrivateKey.fromwallet(arg))
         if len(arg)==52 and "Kw" <= arg[:2] <='L5' and isb58:
+            # a wallet private key
             return BitcoinAddress(PrivateKey.fromwallet(arg))
         elif 33<=len(arg)<=34 and arg[0]=='1' and isb58:
+            # a 'p2pkh' address
             return BitcoinAddress(Address.frombase58(arg))
         elif 33<=len(arg)<=34 and arg[0]=='3' and isb58:
-            return BitcoinAddress(Address.frombase58(arg))
-        elif 33<=len(arg)<=34 and arg[0]=='3' and isb58:
+            # a 'p2sh' address
             return BitcoinAddress(Address.frombase58(arg))
         elif len(arg)==42 and isb32:
+            # a 'p2wpkh' address
             return BitcoinAddress(Address.frombech32(arg))
         elif len(arg)==62 and isb32:
+            # a 'p2wsh' address
             return BitcoinAddress(Address.frombech32(arg))
         elif len(arg)==130 and arg[:2]=='04' and ishex:
+            # a full public key
             return BitcoinAddress(PublicKey.frompubkey(binascii.a2b_hex(arg)))
         elif len(arg)==66 and arg[0]=='0' and arg[1] in ('2','3') and ishex:
+            # a compressed public key
             return BitcoinAddress(PublicKey.frompubkey(binascii.a2b_hex(arg)))
         elif len(arg)==64 and ishex:
+            # a hex private key
             return BitcoinAddress(PrivateKey.fromprivkey(binascii.a2b_hex(arg)))
         else:
             print("unknown string: %s" % arg)
