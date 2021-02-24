@@ -1,4 +1,5 @@
 # check a list of transactions for crackable keys.
+from __future__ import print_function
 from io import BytesIO
 from binascii import a2b_hex, b2a_hex
 from collections import defaultdict
