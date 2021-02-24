@@ -24,6 +24,7 @@ parser.add_argument('--minikey',  action='store_true')
 parser.add_argument('--pubkey',  action='store_true')
 parser.add_argument('--hash',  action='store_true')
 parser.add_argument('--address',  action='store_true')
+parser.add_argument('--bech32',  action='store_true')
 parser.add_argument('ARGS',  nargs='*', type=str)
 
 # todo: --output <spec>: output only specific item for each input line
@@ -51,6 +52,7 @@ elif args.minikey: decoder= bca.BitcoinAddress.from_minikey
 elif args.pubkey : decoder= bca.BitcoinAddress.from_pubkey
 elif args.hash   : decoder= bca.BitcoinAddress.from_hash   
 elif args.address: decoder= bca.BitcoinAddress.from_base58
+elif args.bech32 : decoder= bca.BitcoinAddress.from_bech32
 
 for a in args.ARGS:
     addr= decoder(a)

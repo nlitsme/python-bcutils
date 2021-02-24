@@ -2,6 +2,7 @@ from __future__ import print_function, division
 import ecdsa
 from hashing import *
 import base58
+import bech32
 import re
 import convert
 import struct
@@ -48,12 +49,14 @@ class Address:
         global address_version
         self.hash= None
         self.version= address_version  # global
+        self.hrp = "bc"  # 'human readable prefix'
 
     @staticmethod
     def fromhash(hash):
         self= Address()
         self.hash= hash
         return self
+
     @staticmethod
     def frombase58(b58):
         self= Address()
@@ -71,13 +74,22 @@ class Address:
 
         return self
 
+    @staticmethod
+    def frombech32(b32):
+        self = Address()
+        self.hrp, self.version, self.hash = bech32.decode(b32)
+        return self
+
     def base58(self):
         data= byt(self.version) + self.hash
         data += shasha(data)[0:4]
         return base58.encode(data)
 
+    def bech32(self):
+        return bech32.encode(self.hrp, self.version, self.hash)
+
     def dump(self):
-        print("%-20s: %3d %s" % (binascii.b2a_hex(self.hash).decode('ascii'), self.version, self.base58()))
+        print("%-20s: %3d %-34s - %s" % (binascii.b2a_hex(self.hash).decode('ascii'), self.version, self.base58(), self.bech32()))
 
 """
 represent the public key
@@ -194,6 +206,7 @@ class BitcoinAddress:
             self.privkey= None
             self.pubkey= None
             self.compaddr = self.fulladdr = None
+            self.p2sh = None
 
         if self.privkey:
             self.pubkey= self.privkey.publickey()
@@ -204,6 +217,10 @@ class BitcoinAddress:
                 # most coins have walletversion = 128 + addressversion
                 self.compaddr.version= self.privkey.version-128
                 self.fulladdr.version= self.privkey.version-128
+        if self.compaddr:
+            self.p2sh = Address.fromhash(sharip(struct.pack(">H", len(self.compaddr.hash))+self.compaddr.hash))
+            self.p2sh.version = 5
+
 
     @staticmethod
     def from_privkey(arg):
@@ -217,17 +234,21 @@ class BitcoinAddress:
         return BitcoinAddress(PrivateKey.fromminikey(arg))
     @staticmethod
     def from_pubkey(arg):
-        return BitcoinAddress(PublicKey.frompubkey(arg.decode("hex")))
+        return BitcoinAddress(PublicKey.frompubkey(binascii.a2b_hex(arg)))
     @staticmethod
     def from_hash(arg):
-        return BitcoinAddress(Address.fromhash(arg.decode("hex")))
+        return BitcoinAddress(Address.fromhash(binascii.a2b_hex(arg)))
     @staticmethod
     def from_base58(arg):
         return BitcoinAddress(Address.frombase58(arg))
     @staticmethod
+    def from_bech32(arg):
+        return BitcoinAddress(Address.frombech32(arg))
+    @staticmethod
     def from_auto(arg):
         ishex= re.match(r'[0-9a-f]+$', arg)
         isb58= re.match('['+base58.charset+']+$', arg)
+        isb32= re.match('(?:\w+1)?['+bech32.alphabet+']+$', arg)
 
         if len(arg)==51 and arg[0]=='5' and 'H' <= arg[1] <= 'K' and isb58:
             return BitcoinAddress(PrivateKey.fromwallet(arg))
@@ -235,12 +256,20 @@ class BitcoinAddress:
             return BitcoinAddress(PrivateKey.fromwallet(arg))
         elif 33<=len(arg)<=34 and arg[0]=='1' and isb58:
             return BitcoinAddress(Address.frombase58(arg))
+        elif 33<=len(arg)<=34 and arg[0]=='3' and isb58:
+            return BitcoinAddress(Address.frombase58(arg))
+        elif 33<=len(arg)<=34 and arg[0]=='3' and isb58:
+            return BitcoinAddress(Address.frombase58(arg))
+        elif len(arg)==42 and isb32:
+            return BitcoinAddress(Address.frombech32(arg))
+        elif len(arg)==62 and isb32:
+            return BitcoinAddress(Address.frombech32(arg))
         elif len(arg)==130 and arg[:2]=='04' and ishex:
-            return BitcoinAddress(PublicKey.frompubkey(arg.decode("hex")))
+            return BitcoinAddress(PublicKey.frompubkey(binascii.a2b_hex(arg)))
         elif len(arg)==66 and arg[0]=='0' and arg[1] in ('2','3') and ishex:
-            return BitcoinAddress(PublicKey.frompubkey(arg.decode("hex")))
+            return BitcoinAddress(PublicKey.frompubkey(binascii.a2b_hex(arg)))
         elif len(arg)==64 and ishex:
-            return BitcoinAddress(PrivateKey.fromprivkey(arg.decode("hex")))
+            return BitcoinAddress(PrivateKey.fromprivkey(binascii.a2b_hex(arg)))
         else:
             print("unknown string: %s" % arg)
 
@@ -255,5 +284,7 @@ class BitcoinAddress:
             self.compaddr.dump()
             print("full:", end=" ")
             self.fulladdr.dump()
+        print("p2sh:", end=" ")
+        self.p2sh.dump()
 
 
