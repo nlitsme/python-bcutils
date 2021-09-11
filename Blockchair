@@ -1,0 +1,5 @@
+[![Copy to REST API issue to docs-content](https://github.com/github/docs/actions/workflows/copy-api-issue-to-internal.yml/badge.svg)](https://github.com/github/docs/actions/workflows/copy-api-issue-to-internal.yml)
+<curl https://api.blockchair.com/bitcoin/status
+< https://api.blockchair.com/ethereum/status
+< https://api.blockchair.com/litecoin/status
+<https://api.blockchair.com/dogecoin/stutus
