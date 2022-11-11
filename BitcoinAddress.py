@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-import ecdsa
+import myecdsa
 from hashing import *
 import base58
 import bech32
@@ -7,6 +7,7 @@ import re
 import convert
 import struct
 import binascii
+import hashlib
 
 def byt(c):
     return struct.pack("<B", c)
@@ -31,7 +32,7 @@ note on uniqueness:
 wallet_version = 0x80
 address_version = 0x00
 
-ecdsa= ecdsa.secp256k1()
+B = myecdsa.secp256k1()
 
 def setversions(aver, wver):
     global address_version
@@ -66,7 +67,7 @@ class Address:
             raise Exception("Invalid base58 length")
         if len(data)<25:
             data= "\x00" * (25-len(data))
-        self.version= ord(data[0])
+        self.version= ord(data[0:1])
         self.hash= data[1:21]
         if shasha(data[0:21])[:4] != data[21:]:
             print("addr: %s: %s != %s" % (binascii.b2a_hex(data[:21]), binascii.b2a_hex(data[21:]), shasha(data[0:21])[:4]))
@@ -99,8 +100,12 @@ class PublicKey:
     def __init__(self):
         self.point= None
     def compressed(self):
+        if self.point is None or self.point.x is None or self.point.y is None:
+            return b"\x00" * 33
         return struct.pack("<B", 2 + self.point.y.sqrtflag()) + convert.bytesfromnum(self.point.x) 
     def uncompressed(self):
+        if self.point is None or self.point.x is None or self.point.y is None:
+            return b"\x00" * 65
         return struct.pack("<B", 4) + convert.bytesfromnum(self.point.x) + convert.bytesfromnum(self.point.y)
 
     def dump(self):
@@ -110,10 +115,13 @@ class PublicKey:
     @staticmethod
     def frompubkey(key):
         self= PublicKey()
-        if len(key)==33 and (ord(key[0])==2 or ord(key[0])==3):
-            self.point= ecdsa.ec.decompress(convert.numfrombytes(key[1:]), ord(key[0])-2)
-        elif len(key)==65 and ord(key[0])==4:
-            self.point= ecdsa.ec.point(convert.numfrombytes(key[1:33]), convert.numfrombytes(key[33:65]))
+        if not key:
+            raise Exception("invalid point representation")
+        tag, = struct.unpack_from("<B", key, 0)
+        if len(key)==33 and (tag==2 or tag==3):
+            self.point= B.ec.decompress(convert.numfrombytes(key[1:]), tag-2)
+        elif len(key)==65 and tag==4:
+            self.point= B.ec.point(convert.numfrombytes(key[1:33]), convert.numfrombytes(key[33:65]))
         else:
             print(binascii.b2a_hex(key))
             raise Exception("invalid point representation")
@@ -146,9 +154,11 @@ class PrivateKey:
             raise Exception("Invalid wallet length")
         self.version= ord(data[0:1])
         self.privkey= convert.numfrombytes(data[1:33])
+
         if len(data)==38:
-            # todo: ?? what is this for?
-            self.compressed= ord(data[33])
+            # a compressed walled has:
+            # <wallet-tag>  <32-byte-privkey>  <01>  <4-byte-hash>
+            self.compressed= ord(data[33:34])
         if shasha(data[:-4])[:4] != data[-4:]:
             print("wallet: %s: %s != %s" % (binascii.b2a_hex(data[:33]), binascii.b2a_hex(data[33:]), shasha(data[0:33])[:4]))
             raise Exception("Invalid base58 checksum")
@@ -157,10 +167,10 @@ class PrivateKey:
 
     @staticmethod
     def fromminikey(key):
-        h= SHA256.new()
-        h.update(key)
+        if type(key)==str:
+            key = key.encode('utf-8')
         self= PrivateKey()
-        self.privkey= convert.numfrombytes(h.digest())
+        self.privkey= convert.numfrombytes(sha256(key))
         return self
 
     @staticmethod
@@ -170,9 +180,16 @@ class PrivateKey:
         return self
 
     def publickey(self):
-        return PublicKey.frompoint(ecdsa.calcpub(self.privkey))
+        return PublicKey.frompoint(B.calcpub(self.privkey))
+
     def wallet(self):
         data= byt(self.version)+convert.bytesfromnum(self.privkey)
+        data += shasha(data)[:4]
+        return base58.encode(data)
+
+    def compwallet(self):
+        """ bip0178 wallet indicating a compressed pubkey """
+        data= byt(self.version)+convert.bytesfromnum(self.privkey) + byt(1)
         data += shasha(data)[:4]
         return base58.encode(data)
 
@@ -180,6 +197,7 @@ class PrivateKey:
         if self.minikey: print("%-20s: %s" % ("minikey", self.minikey))
         print("%-20s: %064x" % ("privkey", self.privkey))
         print("%-20s: %s" % ("wallet", self.wallet()))
+        print("%-20s: %s" % ("cwallet", self.compwallet()))
         if self.version is not None and self.compressed is not None:
             print("version: %d          compressed: %d" % (self.version, self.compressed))
         elif self.compressed is not None:
@@ -187,6 +205,20 @@ class PrivateKey:
         elif self.version is not None:
             print("version:     %d" % self.version)
 
+class WSH:
+    @staticmethod
+    def frompubkey(pubkey):
+        o = WSH()
+        o.script = struct.pack("<BB33sBB", 0x51, 0x21, pubkey, 0x51, 0xae)
+        o.hash = sha256(o.script)
+        o.version = 0
+        o.hrp = "bc"
+        return o
+    def bech32(self):
+        return bech32.encode(self.hrp, self.version, self.hash)
+
+    def dump(self):
+        print("%-32s: - %s" % (binascii.b2a_hex(self.hash).decode('ascii'), self.bech32()))
 
 """
 represent all components of a bitcoin address combined
@@ -207,6 +239,7 @@ class BitcoinAddress:
             self.pubkey= None
             self.compaddr = self.fulladdr = None
             self.p2sh = None
+            self.p2shfull = None
 
         if self.privkey:
             self.pubkey= self.privkey.publickey()
@@ -215,11 +248,23 @@ class BitcoinAddress:
             self.fulladdr= Address.fromhash(sharip(self.pubkey.uncompressed()))
             if self.privkey and self.privkey.version:
                 # most coins have walletversion = 128 + addressversion
-                self.compaddr.version= self.privkey.version-128
-                self.fulladdr.version= self.privkey.version-128
+                if self.privkey.version >= 128:
+                    self.compaddr.version= self.privkey.version-128
+                    self.fulladdr.version= self.privkey.version-128
+                else:
+                    print("WARNING: privkey has invalid version: 0x%02x, should be >= 0x80" % self.privkey.version)
+                    self.compaddr.version= self.privkey.version
+                    self.fulladdr.version= self.privkey.version
         if self.compaddr:
             self.p2sh = Address.fromhash(sharip(struct.pack(">H", len(self.compaddr.hash))+self.compaddr.hash))
             self.p2sh.version = 5
+        if self.fulladdr:
+            self.p2shfull = Address.fromhash(sharip(struct.pack(">H", len(self.fulladdr.hash))+self.fulladdr.hash))
+            self.p2shfull.version = 5
+
+        self.p2wsh = None
+        if self.pubkey:
+            self.p2wsh = WSH.frompubkey(self.pubkey.compressed())
 
 
     @staticmethod
@@ -246,7 +291,7 @@ class BitcoinAddress:
         return BitcoinAddress(Address.frombech32(arg))
     @staticmethod
     def from_auto(arg):
-        ishex= re.match(r'[0-9a-f]+$', arg)
+        ishex= re.match(r'[0-9a-fA-F]+$', arg)
         isb58= re.match('['+base58.charset+']+$', arg)
         isb32= re.match('(?:\w+1)?['+bech32.alphabet+']+$', arg)
 
@@ -256,10 +301,10 @@ class BitcoinAddress:
         if len(arg)==52 and "Kw" <= arg[:2] <='L5' and isb58:
             # a wallet private key
             return BitcoinAddress(PrivateKey.fromwallet(arg))
-        elif 33<=len(arg)<=34 and arg[0]=='1' and isb58:
+        elif 31<=len(arg)<=34 and arg[0]=='1' and isb58:
             # a 'p2pkh' address
             return BitcoinAddress(Address.frombase58(arg))
-        elif 33<=len(arg)<=34 and arg[0]=='3' and isb58:
+        elif 31<=len(arg)<=34 and arg[0]=='3' and isb58:
             # a 'p2sh' address
             return BitcoinAddress(Address.frombase58(arg))
         elif len(arg)==42 and isb32:
@@ -293,5 +338,11 @@ class BitcoinAddress:
             self.fulladdr.dump()
         print("p2sh:", end=" ")
         self.p2sh.dump()
+        print("p2sh(full):", end=" ")
+        self.p2shfull.dump()
+
+        if self.p2wsh:
+            print("p2wsh:", end=" ")
+            self.p2wsh.dump()
 
 
