@@ -55,6 +55,8 @@ class WeierstrassCurve:
         self.a = field.value(a)
         self.b = field.value(b)
 
+    def __str__(self): return "Weierstrass(%s;%s;%s)" % (self.field, self.a, self.b)
+
     def add(self, p, q):
         """
         perform elliptic curve addition
@@ -64,10 +66,10 @@ class WeierstrassCurve:
 
         # calculate the slope of the intersection line
         if p==q:
-            if p.y==0:
+            if not p:
                 return self.zero()
             l = (3* p.x**2 + self.a) // (2* p.y)
-        elif p.x==q.x:
+        elif p.x==q.x: # implies: p.y == -q.y
             return self.zero()
         else:
             l = (p.y-q.y)//(p.x-q.x)
@@ -83,8 +85,10 @@ class WeierstrassCurve:
     # scalar multiplication is implemented like repeated addition
     def mul(self, pt, scalar): 
         scalar = int(scalar)
+        ispos = True
         if scalar<0:
-            raise Exception("negative scalar")
+            ispos = False
+            scalar = -scalar
         accumulator = self.zero()
         shifter = pt
         while scalar != 0:
@@ -94,6 +98,8 @@ class WeierstrassCurve:
             shifter += shifter
             scalar //= 2
 
+        if not ispos:
+            accumulator = -accumulator
         return accumulator
 
     def div(self, pt, scalar):
@@ -106,36 +112,65 @@ class WeierstrassCurve:
 
     def eq(self, lhs, rhs): return lhs.x==rhs.x and lhs.y==rhs.y
     def neg(self, pt):
+        if not pt:
+            return pt
         return self.point(pt.x, -pt.y)
     def nonzero(self, pt):
-        return 1 if pt.x or pt.y else 0
+        return not (pt.x is None and pt.y is None)
     def zero(self):
         """
         Return the additive identity point ( aka '0' )
 
         P + 0 = P
         """
-        return self.point(self.field.zero(), self.field.zero())
+        return self.point(None, None)
 
     def point(self, x, y):
         """
         construct a point from 2 values
         """
-        return WeierstrassCurve.Point(self, self.field.value(x), self.field.value(y))
+        return WeierstrassCurve.Point(self, self.coord(x), self.coord(y))
+
+    def coord(self, x):
+        if x is None:
+            return None
+        return self.field.value(x)
 
     def isoncurve(self, p):
         """
         verifies if a point is on the curve
         """
-        return not p or (p.y**2 == p.x**3 + self.a*p.x + self.b)
+        a, b = self.a, self.b
+        x, y = p.x, p.y
+        return not p or (y**2 == x**3 + a*x + b)
 
     def decompress(self, x, flag):
         """
         calculate the y coordinate given only the x value.
         there are 2 possible solutions, use 'flag' to select.
         """
-        x = self.field.value(x)
-        ysquare = x**3 + self.a*x+self.b
+        x = self.coord(x)
+        a, b = self.a, self.b
+        ysquare = x**3 + a*x + b
+        y = ysquare.sqrt(flag)
+        if y is None:
+            return
 
-        return self.point(x, ysquare.sqrt(flag))
+        return self.point(x, y)
+
+    def decompressy(self, y, flag):
+        """
+        calculate the x coordinate given only the y value.
+        there are 3 possible solutions, use 'flag' to select.
+        """
+        y = self.coord(y)
+        if self.a:
+            # works only for a==0
+            return
+        xcube  = y**2-self.b
+        x = xcube.cubert(flag)
+        if x is None:
+            return
+
+        return self.point(x, y)
 
