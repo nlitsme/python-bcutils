@@ -69,6 +69,7 @@ class FiniteField:
 
     def __init__(self, p):
         self.p = p
+    def __str__(self): return "GFp(%d)" % self.p
 
     """
     several basic operators
@@ -114,9 +115,9 @@ class FiniteField:
         if res*res != val:
             return None
         if res.value%2==flag:
-            return res
+            return self.value(res)
         else:
-            return -res
+            return -self.value(res)
 
     def inverse(self, value):
         """
