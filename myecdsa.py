@@ -9,6 +9,12 @@ ecdsa implementation in python
 demonstrating several 'unconventional' calculations,
 like finding a public key from a signature,
 and finding a private key from 2 signatures with identical 'r'
+
+The basic equation:  s*k == m + x*r
+
+TODO:
+    when k==m  -->   x = (s-1)*m/r
+    when k==x  -->   x = m/(s -r)   ... easily spotted whan pubkey.x == r
 """
 
 class ECDSA:
@@ -20,13 +26,21 @@ class ECDSA:
         self.G = G
         self.GFn = FiniteField(n)
 
+    def grouporder(self):
+        return self.GFn.p
+
+    def scalar(self, x):
+        return self.GFn.value(x)
+    def point(self, x, y):
+        return self.ec.point(x, y)
+
     def calcpub(self, privkey):
         """
         calculate the public key for private key x
 
         return G*x
         """
-        return self.G * self.GFn.value(privkey)
+        return self.G * self.scalar(privkey)
 
     def sign(self, message, privkey, secret):
         """
@@ -35,20 +49,23 @@ class ECDSA:
         for signsecret k, message m, privatekey x
         return (G*k,  (m+x*r)/k)
         """
-        m = self.GFn.value(message)
-        x = self.GFn.value(privkey)
-        k = self.GFn.value(secret)
+        m = self.scalar(message)
+        x = self.scalar(privkey)
+        k = self.scalar(secret)
 
         R = self.G * k
 
-        r = self.GFn.value(R.x)
+        r = self.scalar(R.x)
         s = (m + x*r) // k
 
         return (r, s)
 
     def calcr(self, k):
+        """ Note: returns None for the pt at infinity """
         R = self.G * k
-        return self.GFn.value(R.x)
+        if not R:
+            return
+        return self.scalar(R.x)
 
      
     def verify(self, message, pubkey, rnum, snum):
@@ -72,9 +89,9 @@ class ECDSA:
             r == xcoord[ (G*m + Y*r)/s) ]
  
         """
-        m = self.GFn.value(message)
-        r = self.GFn.value(rnum)
-        s = self.GFn.value(snum)
+        m = self.scalar(message)
+        r = self.scalar(rnum)
+        s = self.scalar(snum)
 
         R = self.G * (m//s) + pubkey * (r//s)
 
@@ -94,9 +111,9 @@ class ECDSA:
 
         note that there are 2 pubkeys related to a signature
         """
-        m = self.GFn.value(message)
-        r = self.GFn.value(rnum)
-        s = self.GFn.value(snum)
+        m = self.scalar(message)
+        r = self.scalar(rnum)
+        s = self.scalar(snum)
 
         R = self.ec.decompress(r, flag)
 
@@ -113,7 +130,7 @@ class ECDSA:
         R1 = self.ec.decompress(r1, flag1)
         R2 = self.ec.decompress(r2, flag2)
 
-        rdiff = self.GFn.value(r1-r2)
+        rdiff = self.scalar(r1-r2)
 
         return (R1*s1-R2*s2)*(1//rdiff)
 
@@ -131,16 +148,15 @@ class ECDSA:
 
         -> privkey =  (s1*k-m1)/r  .. or  (s2*k-m2)/r
         """
-        sdelta = self.GFn.value(s1-s2)
-        mdelta = self.GFn.value(m1-m2)
+        sdelta = self.scalar(s1-s2)
+        mdelta = self.scalar(m1-m2)
 
         secret = mdelta // sdelta
         x1 = self.crack1(r, s1, m1, secret)
         x2 = self.crack1(r, s2, m2, secret)
 
         if x1 != x2:
-            print("x1=%s" % x1)
-            print("x2=%s" % x2)
+            return None, None
 
         return (secret, x1)
 
@@ -150,10 +166,10 @@ class ECDSA:
 
         x = (s*k-m)/r
         """
-        m = self.GFn.value(message)
-        r = self.GFn.value(rnum)
-        s = self.GFn.value(snum)
-        k = self.GFn.value(signsecret)
+        m = self.scalar(message)
+        r = self.scalar(rnum)
+        s = self.scalar(snum)
+        k = self.scalar(signsecret)
         return (s*k-m)//r
 
     def find_k(self, message, privkey, rnum, snum):
@@ -162,10 +178,10 @@ class ECDSA:
 
         k = (m+x*r)/s
         """
-        m = self.GFn.value(message)
-        r = self.GFn.value(rnum)
-        s = self.GFn.value(snum)
-        x = self.GFn.value(privkey)
+        m = self.scalar(message)
+        r = self.scalar(rnum)
+        s = self.scalar(snum)
+        x = self.scalar(privkey)
         return (m+x*r)//s
 
     def find_M(self, rnum, snum, pubkey, flag):
@@ -178,8 +194,8 @@ class ECDSA:
         the same message.
 
         """
-        r = self.GFn.value(rnum)
-        s = self.GFn.value(snum)
+        r = self.scalar(rnum)
+        s = self.scalar(snum)
         R = self.ec.decompress(r, flag)
 
         M = R*s-pubkey*r
@@ -196,6 +212,17 @@ def secp256k1():
     generator = ec.point( 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798, 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8  )
     grouporder = 2**256 - 432420386565659656852420866394968145599
     return ECDSA(ec, generator, grouporder)
+
+def secp256r1():
+    """
+    create the secp256r1 curve
+    """
+    GFp = FiniteField(0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF)
+    ec = WeierstrassCurve(GFp, 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC, 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B)
+    generator = ec.point( 0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296, 0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5 )
+    grouporder = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+    return ECDSA(ec, generator, grouporder)
+
 
 def secp521r1():
     """
