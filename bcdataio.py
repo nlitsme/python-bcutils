@@ -5,25 +5,25 @@ class Reader:
     def __init__(self, fh):
         self.fh = fh
     def readbyte(self):
-        data = self.fh.read(1)
+        data = self.readbytes(1)
         if not data:
             return
         b, = struct.unpack("<B", data)
         return b
     def readshort(self):
-        data = self.fh.read(2)
+        data = self.readbytes(2)
         if not data:
             return
         w, = struct.unpack("<H", data)
         return w
     def readdword(self):
-        data = self.fh.read(4)
+        data = self.readbytes(4)
         if not data:
             return
         w, = struct.unpack("<L", data)
         return w
     def readqword(self):
-        data = self.fh.read(8)
+        data = self.readbytes(8)
         if not data:
             return
         w, = struct.unpack("<Q", data)
@@ -41,7 +41,10 @@ class Reader:
         if b==0xff:
             return self.readqword()
     def readbytes(self, size):
-        return self.fh.read(size)
+        data = self.fh.read(size)
+        if data and len(data)<size:
+            raise Exception("not enough data")
+        return data
     def readobject(self, objtype):
         obj = objtype()
         obj.decode(self)
