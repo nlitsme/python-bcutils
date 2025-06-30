@@ -41,7 +41,7 @@ def detaildecode(txt):
         print("%s  - %s" % (c, binary(i, 5)))
 
 BECH32_CONST = 1
-# BECH32M_CONST = 0x2bc830a3 ( see bip350 )
+BECH32M_CONST = 0x2bc830a3 # taproot addr: see bip350
 def bech32_polymod(values):
     GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
     chk = 1
@@ -55,33 +55,46 @@ def bech32_polymod(values):
 def bech32_hrp_expand(s):
     return [ord(x) >> 5 for x in s] + [0] + [ord(x) & 31 for x in s]
 
-def bech32_verify_checksum(hrp, data):
-    return bech32_polymod(bech32_hrp_expand(hrp) + data) == BECH32_CONST
+def bech32_calc_checksum(hrp, data):
+    return bech32_polymod(bech32_hrp_expand(hrp) + data)
 
-def bech32_create_checksum(hrp, data):
+def bech32_create_checksum(hrp, data, taproot_flag):
     values = bech32_hrp_expand(hrp) + data
-    polymod = bech32_polymod(values + [0,0,0,0,0,0]) ^ BECH32_CONST
-    #print(polymod)
+
+    polymod = bech32_polymod(values + [0,0,0,0,0,0])
+    if taproot_flag:
+        polymod ^= BECH32M_CONST
+    else:
+        polymod ^= BECH32_CONST
     return [(polymod >> 5 * (5 - i)) & 31 for i in range(6)]
 
 def decode(txt):
+    """
+    note: taproot signature is encoded in bit7 of the tag.
+    """
     m = re.match(r'(?:(\w+)1)?(\w+)', txt)
     if not m:
         raise Exception("invalid bech32")
     hrp = m.group(1) or ""
     b32 = m.group(2)
-    ok = bech32_verify_checksum(hrp, decode32toquints(b32))
-    if not ok:
+    chk = bech32_calc_checksum(hrp, decode32toquints(b32))
+
+    if chk == BECH32_CONST:
+        sigflag = 0
+    elif chk == BECH32M_CONST:
+        sigflag = 0x80
+    else:
         raise Exception("invalid bech32")
+
     quints = decode32toquints(b32[:-6])
 
-    tag = quints[0]
+    tag = quints[0] | sigflag
     data = quintstobytes(quints[1:])
     return hrp, tag, data
 
 def encode(hrp, tag, data):
     quints = [tag%32] + bytestoquints(data)
-    chk = bech32_create_checksum(hrp, quints)
+    chk = bech32_create_checksum(hrp, quints, tag&0x80)
     if hrp:
         hrp += "1"
     return hrp + encode32(quints) + encode32(chk)
