@@ -40,7 +40,7 @@ class WeierstrassCurve:
         def __lt__(self, rhs): raise Exception("points are not ordered")
         def __ge__(self, rhs): raise Exception("points are not ordered")
         def __gt__(self, rhs): raise Exception("points are not ordered")
-        def __hash__(self): return int(self.x+self.y)
+        def __hash__(self): return int(self.x+self.y) if self else 0
 
         def __str__(self): return "(%s,%s)" % (self.x, self.y)
         def __neg__(self): return self.curve.neg(self)
@@ -49,11 +49,16 @@ class WeierstrassCurve:
         def __bool__(self): return self.__nonzero__() != 0
         def isoncurve(self):
             return self.curve.isoncurve(self)
+        def __repr__(self):
+            return f"({self.x}, {self.y})"
 
     def __init__(self, field, a, b):
         self.field = field
         self.a = field.value(a)
         self.b = field.value(b)
+
+    def discriminant(self):
+        return -16*(4*self.a**3+27*self.b**2)
 
     def __str__(self): return "Weierstrass(%s;%s;%s)" % (self.field, self.a, self.b)
 
@@ -110,7 +115,7 @@ class WeierstrassCurve:
         """
         return pt * (1//scalar)
 
-    def eq(self, lhs, rhs): return lhs.x==rhs.x and lhs.y==rhs.y
+    def eq(self, lhs, rhs): return lhs.x==rhs.x and lhs.y==rhs.y if lhs and rhs else not(lhs and rhs)
     def neg(self, pt):
         if not pt:
             return pt
