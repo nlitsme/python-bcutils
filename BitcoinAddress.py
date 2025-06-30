@@ -90,7 +90,7 @@ class Address:
         return bech32.encode(self.hrp, self.version, self.hash)
 
     def dump(self):
-        print("%-20s: %3d %-34s - %s" % (binascii.b2a_hex(self.hash).decode('ascii'), self.version, self.base58(), self.bech32()))
+        print("%-20s: %02x %-34s - %s" % (binascii.b2a_hex(self.hash).decode('ascii'), self.version, self.base58(), self.bech32()))
 
 """
 represent the public key
@@ -292,33 +292,35 @@ class BitcoinAddress:
     @staticmethod
     def from_auto(arg):
         ishex= re.match(r'[0-9a-fA-F]+$', arg)
-        isb58= re.match('['+base58.charset+']+$', arg)
-        isb32= re.match('(?:\w+1)?['+bech32.alphabet+']+$', arg)
+        isb58= re.match(r'['+base58.charset+']+$', arg)
+        isb32= re.match(r'(?:\w+1)?['+bech32.alphabet+']+$', arg)
 
         if len(arg)==51 and arg[0]=='5' and 'H' <= arg[1] <= 'K' and isb58:
             # a wallet private key
-            return BitcoinAddress(PrivateKey.fromwallet(arg))
+            return BitcoinAddress.from_wallet(arg)
         if len(arg)==52 and "Kw" <= arg[:2] <='L5' and isb58:
             # a wallet private key
-            return BitcoinAddress(PrivateKey.fromwallet(arg))
+            return BitcoinAddress.from_wallet(arg)
         elif 31<=len(arg)<=34 and arg[0]=='1' and isb58:
             # a 'p2pkh' address
-            return BitcoinAddress(Address.frombase58(arg))
+            return BitcoinAddress.from_base58(arg)
         elif 31<=len(arg)<=34 and arg[0]=='3' and isb58:
             # a 'p2sh' address
-            return BitcoinAddress(Address.frombase58(arg))
+            return BitcoinAddress.from_base58(arg)
         elif len(arg)==42 and isb32:
             # a 'p2wpkh' address
-            return BitcoinAddress(Address.frombech32(arg))
+            return BitcoinAddress.from_bech32(arg)
         elif len(arg)==62 and isb32:
             # a 'p2wsh' address
-            return BitcoinAddress(Address.frombech32(arg))
+            return BitcoinAddress.from_bech32(arg)
         elif len(arg)==130 and arg[:2]=='04' and ishex:
             # a full public key
-            return BitcoinAddress(PublicKey.frompubkey(binascii.a2b_hex(arg)))
+            return BitcoinAddress.from_pubkey(arg)
+        elif len(arg)==40 and ishex:
+            return BitcoinAddress.from_hash(arg)
         elif len(arg)==66 and arg[0]=='0' and arg[1] in ('2','3') and ishex:
             # a compressed public key
-            return BitcoinAddress(PublicKey.frompubkey(binascii.a2b_hex(arg)))
+            return BitcoinAddress.from_pubkey(arg)
         elif len(arg)==64 and ishex:
             # a hex private key
             return BitcoinAddress(PrivateKey.fromprivkey(binascii.a2b_hex(arg)))
