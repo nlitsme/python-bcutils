@@ -1,9 +1,9 @@
 # bcutils
 bitcoin utils
 
-Python implementation of moduler and elliptic curve calculations.
-the ECDSA module has functions for calculating various values
-from differnt sets of givens. ( like calculate the public key from a message + signature )
+Python implementation of modular and elliptic curve calculations.
+the ECDSA module has functions for evaluating the signing equation for 
+from different sets of given variables. ( like recover the public key from a message + signature )
 
 The bcaddr tool can convert bitcoin addresses between several formats.
 
